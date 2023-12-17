@@ -184,12 +184,25 @@ def optimize_model():
 def transformFrame(frame):
     frame = np.array(frame)
     grayscale_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    image = cv2.resize(grayscale_image, (84, 84))  # Cambiar tamaño a 84x84 píxeles
-    input_state = np.array(image)
-    
-    cv2.imshow("Sheep", input_state)
+
+    height, width = grayscale_image.shape
+
+    start_row = 0  
+    end_row = height  
+    start_col = int(width / 4)  
+    end_col = width  
+
+    # Half screen
+    cropped_image = grayscale_image[start_row:end_row, start_col:end_col]
+
+    cv2.imshow("Sheep", cropped_image)
     cv2.waitKey(1)
     plt.show()
+
+    image = cv2.resize(grayscale_image, (84, 84))
+    input_state = np.array(image)
+    
+
     input_state = input_state / 255.0
 
     cropped = input_state.reshape((1,84,84))

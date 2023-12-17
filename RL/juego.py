@@ -52,6 +52,7 @@ class GeometryDashEnv(gym.Env):
         self.clock = pygame.time.Clock()
 
         self.reward = 0
+        self.trial = 0
 
     def step(self, action):
         done = False
@@ -110,7 +111,9 @@ class GeometryDashEnv(gym.Env):
         self.reward += 1
         font = pygame.font.Font(None, 36)
         reward_text = font.render(f"Reward: {self.reward}", True, self.black)
+        trial_text = font.render(f"Trial: {self.trial}", True, self.black)
         self.screen.blit(reward_text, (10, 10))
+        self.screen.blit(trial_text, (10, 40))
 
         pygame.display.flip()
 
@@ -124,8 +127,10 @@ class GeometryDashEnv(gym.Env):
         # Reiniciar el entorno
         self.player_y = self.height // 2 - self.player_height // 2
         self.fall_speed = 0
+        self.reward = 0
         self.obstacles = []
         self.air_jumps = 0  # Reiniciar el contador de saltos al reiniciar el juego
+        self.trial += 1
         return self.get_frame()
 
 
