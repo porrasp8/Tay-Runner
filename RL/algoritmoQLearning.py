@@ -14,6 +14,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import juego
 import numpy as np
+import signal
 
 env = juego.GeometryDashEnv()
 
@@ -95,6 +96,15 @@ class DQN(nn.Module):
         return q
 
 
+def load_model(net, filepath):
+    try:
+        checkpoint = torch.load(filepath)
+        net.load_state_dict(checkpoint['model_state_dict'])
+        net.eval()
+        print("Modelo cargado correctamente.")
+
+    except FileNotFoundError:
+        print("No se encontró un modelo existente. Se creará uno nuevo.")
 
 
 
@@ -102,10 +112,12 @@ BATCH_SIZE = 128
 GAMMA = 0.99
 EPS_START = 0.9
 EPS_END = 0.05
-EPS_DECAY = 1000
+EPS_DECAY = 1
 TAU = 0.005
 LR = 1e-4
 
+filepath_policy_net = "./policy_net"
+filepath_test_net = "./test_net"
 # Get number of actions from gym action space
 n_actions = env.action_space.n
 
@@ -114,7 +126,10 @@ state = env.reset()
 n_observations = len(state)
 
 policy_net = DQN(n_actions).to(device)
+load_model(policy_net, filepath_policy_net)
+
 target_net = DQN(n_actions).to(device)
+load_model(target_net, filepath_test_net)
 target_net.load_state_dict(policy_net.state_dict())
 
 optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
@@ -195,11 +210,7 @@ def transformFrame(frame):
     # Half screen
     cropped_image = grayscale_image[start_row:end_row, start_col:end_col]
 
-    cv2.imshow("Sheep", cropped_image)
-    cv2.waitKey(1)
-    plt.show()
-
-    image = cv2.resize(grayscale_image, (84, 84))
+    image = cv2.resize(cropped_image, (84, 84))
     input_state = np.array(image)
     
 
@@ -246,6 +257,8 @@ for i_episode in range(num_episodes):
 
         frame = next_frame
         if done:
+            torch.save({'model_state_dict': policy_net.state_dict()}, filepath_policy_net)
+            torch.save({'model_state_dict': target_net.state_dict()}, filepath_test_net)
             break
 
 

@@ -62,8 +62,10 @@ class GeometryDashEnv(gym.Env):
             self.fall_speed = self.jump_force
             if self.player_y != self.height - self.player_height:
                 self.air_jumps += 1
+                self.reward -= 2
         else:
             self.fall_speed += self.gravity
+            self.reward +=1
 
         self.player_y += self.fall_speed
 
@@ -96,9 +98,9 @@ class GeometryDashEnv(gym.Env):
                 and self.player_y + self.player_height > obstacle[1]
             ):
                 if self.player_y < obstacle[1] + obstacle[3] and self.player_y + self.player_height > obstacle[1] + obstacle[3] - 20:
-                    # Solo muere si toca por debajo
+
                     done = True
-                    #reward = -1  # Penalizar colisión
+                    self.reward -= 0
                     return self.get_frame(), self.reward, done
 
 
@@ -108,7 +110,7 @@ class GeometryDashEnv(gym.Env):
         for obstacle in self.obstacles:
             pygame.draw.rect(self.screen, self.black, obstacle)
 
-        self.reward += 1
+        
         font = pygame.font.Font(None, 36)
         reward_text = font.render(f"Reward: {self.reward}", True, self.black)
         trial_text = font.render(f"Trial: {self.trial}", True, self.black)
