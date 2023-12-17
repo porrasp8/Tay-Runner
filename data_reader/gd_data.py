@@ -1,7 +1,10 @@
 import ctypes
 import psutil
 import struct
-import time
+import mss
+import numpy as np
+import cv2
+import pygetwindow as gw
 
 class GdData:
     def __init__(self, current_frame=None, percent=None, speed=None, is_playing=None):
@@ -15,8 +18,9 @@ class GdData:
        
 
 class GdDataReader:
-    def __init__(self, target_program, data_length=4):
+    def __init__(self, target_program, window_name, data_length=4):
         self.target_program = target_program
+        self.window_name = window_name
         self.data_length = data_length
         self.process = None
         self.buffer = ctypes.create_string_buffer(self.data_length)
@@ -56,3 +60,24 @@ class GdDataReader:
     def close_process(self):
         if self.process:
             ctypes.windll.kernel32.CloseHandle(self.process)
+    
+    def capture_game_image(self, monitor_index):
+
+        if(self._is_program_running_and_active(self.target_program, self.window_name)):
+            with mss.mss() as sct:
+                monitor = sct.monitors[monitor_index]
+                img = np.array(sct.grab(monitor))
+
+                return img
+            
+        return None
+    
+
+    @staticmethod
+    def _is_program_running_and_active(program_name, window_name):
+        for process in psutil.process_iter(['pid', 'name']):
+            if program_name.lower() in process.info['name'].lower():
+                active_window = gw.getActiveWindow()
+                if active_window.title == window_name:
+                    return True
+        return False
