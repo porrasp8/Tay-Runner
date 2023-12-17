@@ -24,6 +24,19 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
+# Training params
+BATCH_SIZE = 256 #128
+GAMMA = 0.95 # 0.99
+EPS_START = 0.9
+EPS_END = 0.05
+EPS_DECAY = 1000 # 1
+TAU = 0.005
+LR = 1e-4     # 1e-5
+
+# Files paths
+filepath_policy_net = "./policy_net"
+filepath_test_net = "./test_net"
+filename_rewards_log = "rewards.npy"
 
 class ReplayMemory(object):
 
@@ -39,7 +52,6 @@ class ReplayMemory(object):
 
     def __len__(self):
         return len(self.memory)
-
 
 
 class DQN(nn.Module):
@@ -101,25 +113,12 @@ def load_model(net, filepath):
         checkpoint = torch.load(filepath)
         net.load_state_dict(checkpoint['model_state_dict'])
         net.eval()
-        print("Modelo cargado correctamente.")
+        print("Model found and loaded")
 
     except FileNotFoundError:
-        print("No se encontró un modelo existente. Se creará uno nuevo.")
+        print("Creating new model")
 
 
-
-BATCH_SIZE = 128
-GAMMA = 0.99
-EPS_START = 0.9
-EPS_END = 0.05
-EPS_DECAY = 1   # 10000
-TAU = 0.005
-LR = 1e-4     # 1e-5
-
-filepath_policy_net = "./policy_net"
-filepath_test_net = "./test_net"
-
-# Get number of actions from gym action space
 n_actions = env.action_space.n
 
 # Creates the convolutional networks and loads the previous models
@@ -131,9 +130,9 @@ load_model(target_net, filepath_test_net)
 
 target_net.load_state_dict(policy_net.state_dict())
 
+# AdamW optimizer and memory declaration
 optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
 memory = ReplayMemory(10000)
-
 
 steps_done = 0
 
@@ -220,48 +219,56 @@ def transformFrame(frame):
     return stacked
 
 
-if torch.cuda.is_available():
-    num_episodes = 600
-else:
-    num_episodes = 50
-    
+def main():
+    if torch.cuda.is_available():
+        num_episodes = 600
+    else:
+        num_episodes = 50
 
-for i_episode in range(num_episodes):
-    frame = env.reset()
-    frame = torch.tensor(transformFrame(frame), dtype=torch.float32, device=device).unsqueeze(0)
+    rewards = []
 
-    for t in count():
-        action = select_action(frame)
-        obs, reward, done = env.step(action.item())
-        observation = transformFrame(obs)
+    for i_episode in range(num_episodes):
+        frame = env.reset()
+        frame = torch.tensor(transformFrame(frame), dtype=torch.float32, device=device).unsqueeze(0)
 
-        reward = torch.tensor([reward], device=device)
+        for t in count():
+            action = select_action(frame)
+            obs, rew, done = env.step(action.item())
+            observation = transformFrame(obs)
 
-        if done:
-            next_frame = None
-        else:
-            next_frame = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
+            reward = torch.tensor([rew], device=device)
 
-        
-        memory.push(frame, action, next_frame, reward)
+            if done:
+                rewards.append(rew)
+                next_frame = None
+            else:
+                next_frame = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
-        optimize_model()
+            
+            memory.push(frame, action, next_frame, reward)
 
-        target_net_state_dict = target_net.state_dict()
-        policy_net_state_dict = policy_net.state_dict()
+            optimize_model()
 
-        for key in policy_net_state_dict:
-            target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[key] * (1 - TAU)
-        target_net.load_state_dict(target_net_state_dict)
+            target_net_state_dict = target_net.state_dict()
+            policy_net_state_dict = policy_net.state_dict()
 
-        frame = next_frame
-        if done:
-            torch.save({'model_state_dict': policy_net.state_dict()}, filepath_policy_net)
-            torch.save({'model_state_dict': target_net.state_dict()}, filepath_test_net)
-            break
+            for key in policy_net_state_dict:
+                target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[key] * (1 - TAU)
+            target_net.load_state_dict(target_net_state_dict)
+
+            frame = next_frame
+            if done:
+                np.save(filename_rewards_log, rewards)
+                torch.save({'model_state_dict': policy_net.state_dict()}, filepath_policy_net)
+                torch.save({'model_state_dict': target_net.state_dict()}, filepath_test_net)
+                break
 
 
-print('Complete')
-plt.ioff()
-plt.show()
+    print('Complete')
+    plt.ioff()
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
 
