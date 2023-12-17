@@ -112,24 +112,23 @@ BATCH_SIZE = 128
 GAMMA = 0.99
 EPS_START = 0.9
 EPS_END = 0.05
-EPS_DECAY = 1
+EPS_DECAY = 1   # 10000
 TAU = 0.005
-LR = 1e-4
+LR = 1e-4     # 1e-5
 
 filepath_policy_net = "./policy_net"
 filepath_test_net = "./test_net"
+
 # Get number of actions from gym action space
 n_actions = env.action_space.n
 
-# Get the number of state observations
-state = env.reset()
-n_observations = len(state)
-
+# Creates the convolutional networks and loads the previous models
 policy_net = DQN(n_actions).to(device)
 load_model(policy_net, filepath_policy_net)
 
 target_net = DQN(n_actions).to(device)
 load_model(target_net, filepath_test_net)
+
 target_net.load_state_dict(policy_net.state_dict())
 
 optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
