@@ -115,7 +115,7 @@ class GeometryDashEnv(gym.Env):
         pygame.display.flip()
 
         # Controlar la velocidad de actualización
-        self.clock.tick(30)
+        self.clock.tick(100)
 
         
         return self.get_frame(), self.reward, done

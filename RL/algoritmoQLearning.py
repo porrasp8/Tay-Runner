@@ -42,22 +42,58 @@ class ReplayMemory(object):
 
 
 class DQN(nn.Module):
-    def __init__(self, n_actions):
+    """
+    CNN with Duel Algo. https://arxiv.org/abs/1511.06581
+    """
+    def __init__(self, output_size, h=84, w=84):
         super(DQN, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=8, stride=4)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
-        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
-        self.fc1 = nn.Linear(64 * 6 * 6, 512)
-        self.fc2 = nn.Linear(512, n_actions)
+        self.conv1 = nn.Conv2d(in_channels=4,  out_channels=32, kernel_size=8, stride=4)
+        self.bn1 = nn.BatchNorm2d(32)
+        convw, convh = self.conv2d_size_calc(w, h, kernel_size=8, stride=4)
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2)
+        self.bn2 = nn.BatchNorm2d(64)
+        convw, convh = self.conv2d_size_calc(convw, convh, kernel_size=4, stride=2)
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1)
+        self.bn3 = nn.BatchNorm2d(64)
+        convw, convh = self.conv2d_size_calc(convw, convh, kernel_size=3, stride=1)
+
+        linear_input_size = convw * convh * 64  # Last conv layer's out sizes
+
+        # Action layer
+        self.Alinear1 = nn.Linear(in_features=linear_input_size, out_features=128)
+        self.Alrelu = nn.LeakyReLU()  # Linear 1 activation funct
+        self.Alinear2 = nn.Linear(in_features=128, out_features=output_size)
+
+        # State Value layer
+        self.Vlinear1 = nn.Linear(in_features=linear_input_size, out_features=128)
+        self.Vlrelu = nn.LeakyReLU()  # Linear 1 activation funct
+        self.Vlinear2 = nn.Linear(in_features=128, out_features=1)  # Only 1 node
+
+    def conv2d_size_calc(self, w, h, kernel_size=5, stride=2):
+        """
+        Calcs conv layers output image sizes
+        """
+        next_w = (w - (kernel_size - 1) - 1) // stride + 1
+        next_h = (h - (kernel_size - 1) - 1) // stride + 1
+        return next_w, next_h
 
     def forward(self, x):
-        x = x.permute(0, 3, 1, 2)  # Change the channel order (from [1, 84, 84, 1] to [1, 1, 84, 84])
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-        x = x.view(x.size(0), -1)
-        x = F.relu(self.fc1(x))
-        return self.fc2(x)
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
+
+        x = x.view(x.size(0), -1)  # Flatten every batch
+
+        Ax = self.Alrelu(self.Alinear1(x))
+        Ax = self.Alinear2(Ax)  # No activation on last layer
+
+        Vx = self.Vlrelu(self.Vlinear1(x))
+        Vx = self.Vlinear2(Vx)  # No activation on last layer
+
+        q = Vx + (Ax - Ax.mean())
+
+        return q
+
 
 
 
@@ -88,8 +124,20 @@ memory = ReplayMemory(10000)
 steps_done = 0
 
 
-def select_action():
-    return torch.tensor([[random.choice([0, 1])]], device=device, dtype=torch.long)
+def select_action(state):
+    global steps_done
+    sample = random.random()
+    eps_threshold = EPS_END + (EPS_START - EPS_END) * \
+        math.exp(-1. * steps_done / EPS_DECAY)
+    steps_done += 1
+    if sample > eps_threshold:
+        with torch.no_grad():
+            # t.max(1) will return the largest column value of each row.
+            # second column on max result is index of where max element was
+            # found, so we pick action with the larger expected reward.
+            return policy_net(state).max(1).indices.view(1, 1)
+    else:
+        return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
 
 
 def optimize_model():
@@ -101,19 +149,20 @@ def optimize_model():
 
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
                                           batch.next_state)), device=device, dtype=torch.bool)
+
     non_final_next_states = torch.cat([s for s in batch.next_state
                                       if s is not None])
     
     # Convert    to tensor
     state_batch = torch.cat(batch.state)
-    next_state = torch.cat(batch.next_state)
     action_batch = torch.cat(batch.action)
     reward_batch = torch.cat(batch.reward)
 
+    
     state_action_values = policy_net(state_batch).gather(1, action_batch)
-
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
 
+    
     with torch.no_grad():
         next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
     # Compute the expected Q values
@@ -134,7 +183,7 @@ def optimize_model():
 
 def transformFrame(frame):
     frame = np.array(frame)
-    grayscale_image = np.dot(frame[..., :3], [0.299, 0.587, 0.114])
+    grayscale_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     image = cv2.resize(grayscale_image, (84, 84))  # Cambiar tamaño a 84x84 píxeles
     input_state = np.array(image)
     
@@ -143,7 +192,9 @@ def transformFrame(frame):
     plt.show()
     input_state = input_state / 255.0
 
-    return input_state
+    cropped = input_state.reshape((1,84,84))
+    stacked = np.vstack([cropped, cropped, cropped, cropped])
+    return stacked
 
 
 if torch.cuda.is_available():
@@ -157,13 +208,18 @@ for i_episode in range(num_episodes):
     frame = torch.tensor(transformFrame(frame), dtype=torch.float32, device=device).unsqueeze(0)
 
     for t in count():
-        action = select_action()
-        img_raw, reward, done = env.step(action.item())
-
-        next_frame = None if done else torch.tensor(transformFrame(img_raw), dtype=torch.float32, device=device).unsqueeze(0)
+        action = select_action(frame)
+        obs, reward, done = env.step(action.item())
+        observation = transformFrame(obs)
 
         reward = torch.tensor([reward], device=device)
-        print(len(frame), action, len(next_frame), reward)
+
+        if done:
+            next_frame = None
+        else:
+            next_frame = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
+
+        
         memory.push(frame, action, next_frame, reward)
 
         optimize_model()
