@@ -11,10 +11,11 @@ MONITOR_INDEX = 1
 
 #-- Check it with CheatEngine
 memory_addresses = {
-    'gd_frame': 0x6B7DBDC0,
-    'gd_percent': 0x6B7DBD80,
-    'gd_speed': 0x6B7DB780,
+    'gd_frame': 0x5948BDC0,
+    'gd_percent': 0x5948BD80,
+    'gd_speed': 0x5948B780,
 }
+
 
 def main():
 

@@ -1,4 +1,5 @@
 
+import gymnasium as gym
 import math
 import random
 import matplotlib
@@ -11,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-import RL.wraper as wraper
+import wraper
 import numpy as np
 import signal
 
@@ -24,7 +25,7 @@ Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
 # Training params
-BATCH_SIZE = 256 #128
+BATCH_SIZE = 256 #256 #128
 GAMMA = 0.95 # 0.99
 EPS_START = 0.9
 EPS_END = 0.05
@@ -130,7 +131,7 @@ load_model(target_net, filepath_test_net)
 target_net.load_state_dict(policy_net.state_dict())
 
 # AdamW optimizer and memory declaration
-optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
+optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=False)
 memory = ReplayMemory(10000)
 
 steps_done = 0
@@ -195,7 +196,7 @@ def optimize_model():
 
 def transformFrame(frame):
     frame = np.array(frame)
-    grayscale_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    grayscale_image = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
 
     height, width = grayscale_image.shape
 
@@ -215,6 +216,7 @@ def transformFrame(frame):
 
     cropped = input_state.reshape((1,84,84))
     stacked = np.vstack([cropped, cropped, cropped, cropped])
+
     return stacked
 
 
