@@ -66,7 +66,14 @@ class GdDataReader:
         if(self._is_program_running_and_active(self.target_program, self.window_name)):
             with mss.mss() as sct:
                 monitor = sct.monitors[monitor_index]
-                img = np.array(sct.grab(monitor))
+                screen =  {
+                    "top": monitor["top"],  # 100px from the top
+                    "left": monitor["left"] +  monitor["left"] / 3,  # 100px from the left
+                    "width":  monitor["left"],
+                    "height": monitor["top"],
+                    "monitor": monitor_index,
+                }
+                img = np.array(sct.grab(screen))
 
                 return img
             

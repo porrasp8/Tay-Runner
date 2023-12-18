@@ -22,7 +22,14 @@ def capture_game_image(monitor_index):
     if(is_program_running_and_active(TARGET_PROGRAM, WINDOW_NAME)):
         with mss.mss() as sct:
             monitor = sct.monitors[monitor_index]
-            img = np.array(sct.grab(monitor))
+            screen = {
+                "top": monitor["top"],  # 100px from the top
+                "left": monitor["left"] + monitor["width"] // 3,  # 100px from the left
+                "width": monitor["width"] * 2 // 3,
+                "height": monitor["height"],
+                "mon": monitor_index,
+            }
+            img = np.array(sct.grab(screen))
 
             return img
         
