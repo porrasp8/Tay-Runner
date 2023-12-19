@@ -1,4 +1,3 @@
-import gymnasium as gym
 import math
 import random
 import matplotlib
@@ -11,11 +10,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-import juego
+import wraper
 import numpy as np
+import os
+import time
+import sys
 from algoritmoQLearning import DQN, ReplayMemory, load_model
 
-env = juego.GeometryDashEnv()
+env = wraper.GeometryDashEnv()
+
 
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -36,9 +39,6 @@ LR = 1e-4     # 1e-5
 filepath_policy_net = "./policy_net"
 filepath_test_net = "./test_net"
 filename_rewards_log = "rewards.npy"
-
-
-
 
 
 
