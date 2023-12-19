@@ -113,7 +113,7 @@ class GeometryDashEnv(gym.Env):
 
         pygame.display.flip()
         self.clock.tick(100)
-
+        print(self.reward)
         return self.get_frame(), self.reward, done
 
     def reset(self): 
