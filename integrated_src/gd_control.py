@@ -12,8 +12,8 @@ class GdControl:
         self.jump_key = jump_key
 
     def jump(self):
-        if self._is_program_running_and_active(TARGET_PROGRAM, WINDOW_NAME):
-            self._key_press_simulation(self.jump_key)
+        #if self._is_program_running_and_active(TARGET_PROGRAM, WINDOW_NAME):
+        self._key_press_simulation(self.jump_key)
 
     @staticmethod
     def _key_press_simulation(key):

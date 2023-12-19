@@ -63,15 +63,18 @@ class GdDataReader:
     
     def capture_game_image(self, monitor_index):
 
-        if(self._is_program_running_and_active(self.target_program, self.window_name)):
-            with mss.mss() as sct:
-                monitor = sct.monitors[monitor_index]
-                img = np.array(sct.grab(monitor))
+        with mss.mss() as sct:
+            monitor = sct.monitors[monitor_index]
+            screen = {
+                "top": monitor["top"],  # 100px from the top
+                "left": monitor["left"] + monitor["width"] // 3,  # 100px from the left
+                "width": monitor["width"] * 2 // 4,
+                "height": monitor["height"],
+                "mon": monitor_index,
+            }
+            img = np.array(sct.grab(screen))
 
-                return img
-            
-        return None
-    
+            return img
 
     @staticmethod
     def _is_program_running_and_active(program_name, window_name):

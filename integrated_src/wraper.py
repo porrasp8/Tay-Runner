@@ -12,13 +12,13 @@ TARGET_PROGRAM = 'GeometryDash.exe'
 WINDOW_NAME = 'Geometry Dash'
 DATA_LENGTH = 4
 MONITOR_INDEX = 1
-JUMP_PENALTY = 0
+JUMP_PENALTY = 1.0
 
 #-- Check it with CheatEngine
 memory_addresses = {
-    'gd_frame': 0x5948BDC0,
-    'gd_percent': 0x5948BD80,
-    'gd_speed': 0x5948B780,
+    'gd_frame': 0x5BADBDC0,
+    'gd_percent': 0x5BADBD80,
+    'gd_speed': 0x5BADB780,
 }
 
 
@@ -35,19 +35,22 @@ class GeometryDashEnv(gym.Env):
     def step(self, action):
 
         done = False
+
+        
         reward = self.gd_data_reader.read_memory(memory_addresses['gd_percent'], 'float')
         current_frame = self.gd_data_reader.read_memory(memory_addresses['gd_frame'], 'int')
         img =  self.gd_data_reader.capture_game_image(MONITOR_INDEX)
 
+
         #-- Check if playing
         playing = current_frame != self.last_frame
 
+        
         while (img is None or not playing):
             img =  self.gd_data_reader.capture_game_image(MONITOR_INDEX)
             current_frame = self.gd_data_reader.read_memory(memory_addresses['gd_frame'], 'int')
             playing = current_frame != self.last_frame
             #time.sleep(1)
-
         
         #-- Check death
         done = current_frame < self.last_frame
@@ -57,7 +60,7 @@ class GeometryDashEnv(gym.Env):
             reward -= JUMP_PENALTY
             self.gd_controller.jump()
         
-        print("done: " + str(done) + ", reward: " + str(reward) + ", current_frame: " + str(current_frame) + ", last frame: " + str(self.last_frame) + ", playing: " + str(playing))
+        # print("done: " + str(done) + ", reward: " + str(reward) + ", current_frame: " + str(current_frame) + ", last frame: " + str(self.last_frame) + ", playing: " + str(playing))
         
         return img, reward, done
 
@@ -66,7 +69,6 @@ class GeometryDashEnv(gym.Env):
         img =  self.gd_data_reader.capture_game_image(MONITOR_INDEX)
         while img is None:
             img =  self.gd_data_reader.capture_game_image(MONITOR_INDEX)
-            print("B")
             #time.sleep(1)
 
         return img

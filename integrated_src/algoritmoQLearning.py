@@ -1,5 +1,4 @@
 
-import gymnasium as gym
 import math
 import random
 import matplotlib
@@ -14,28 +13,31 @@ import torch.optim as optim
 import torch.nn.functional as F
 import wraper
 import numpy as np
-import signal
+import os
+import time
+import sys
 
 env = wraper.GeometryDashEnv()
 
 # if GPU is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("CUDA: ", torch.cuda.is_available())
 
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
 # Training params
-BATCH_SIZE = 256 #256 #128
-GAMMA = 0.95 # 0.99
-EPS_START = 0.9
+BATCH_SIZE = 128
+GAMMA = 0.97
+EPS_START = 0.99
 EPS_END = 0.05
-EPS_DECAY = 1000 # 1
+EPS_DECAY = 10000
 TAU = 0.005
-LR = 1e-4     # 1e-5
+LR = 1e-4
 
 # Files paths
-filepath_policy_net = "./policy_net"
-filepath_test_net = "./test_net"
+filepath_policy_net = "policy_net"
+filepath_test_net = "test_net"
 filename_rewards_log = "rewards.npy"
 
 class ReplayMemory(object):
@@ -131,7 +133,7 @@ load_model(target_net, filepath_test_net)
 target_net.load_state_dict(policy_net.state_dict())
 
 # AdamW optimizer and memory declaration
-optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=False)
+optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
 memory = ReplayMemory(10000)
 
 steps_done = 0
@@ -142,6 +144,10 @@ def select_action(state):
     sample = random.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * \
         math.exp(-1. * steps_done / EPS_DECAY)
+    
+    eps_threshold = min(eps_threshold, EPS_START)
+    print("*** Epsilon = ", eps_threshold)
+
     steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
@@ -198,6 +204,7 @@ def transformFrame(frame):
     frame = np.array(frame)
     grayscale_image = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
 
+    '''
     height, width = grayscale_image.shape
 
     start_row = 0  
@@ -207,7 +214,8 @@ def transformFrame(frame):
 
     # Half screen
     cropped_image = grayscale_image[start_row:end_row, start_col:end_col]
-
+    '''
+    cropped_image = grayscale_image
     image = cv2.resize(cropped_image, (84, 84))
     input_state = np.array(image)
     
@@ -215,27 +223,60 @@ def transformFrame(frame):
     input_state = input_state / 255.0
 
     cropped = input_state.reshape((1,84,84))
-    stacked = np.vstack([cropped, cropped, cropped, cropped])
 
-    return stacked
+    # cv2.imshow("Game Screenshot", cropped_image)
+    # key = cv2.waitKey(1)
+
+    return cropped
 
 
 def main():
-    if torch.cuda.is_available():
-        num_episodes = 600
-    else:
-        num_episodes = 50
+#    if torch.cuda.is_available():
+#        num_episodes = 600
+#    else:
+#        num_episodes = 50
+
+    if len(sys.argv) == 2:
+        global filepath_policy_net, filepath_test_net, filename_rewards_log
+        folder = sys.argv[1]
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        
+        filepath_policy_net = folder + "/" + filepath_policy_net
+        filepath_test_net = folder + "/" + filepath_test_net
+        filename_rewards_log = folder + "/" + filename_rewards_log
 
     rewards = []
+    inferences = []
+    lastFrames = []
 
-    for i_episode in range(num_episodes):
+    while True:
+    #for i_episode in range(num_episodes):
         frame = env.reset()
-        frame = torch.tensor(transformFrame(frame), dtype=torch.float32, device=device).unsqueeze(0)
+        frame = transformFrame(frame)
+        lastFrames = [frame, frame, frame]
+        stacked = np.vstack([frame, frame, frame, frame])
 
-        for t in count():
+
+        frame = torch.tensor(stacked, dtype=torch.float32, device=device).unsqueeze(0)
+
+        for t in count(): 
+            
+            tim = time.time()
             action = select_action(frame)
+
+            initTime = time.time()
             obs, rew, done = env.step(action.item())
+            # print("**** Step time = ", time.time() - initTime)
+
             observation = transformFrame(obs)
+
+            # Updates the frames list
+            lastFrames.insert(0, observation)
+            del lastFrames[-1]
+
+            # Creates the tensor
+            observation = np.vstack([lastFrames[2], lastFrames[1], lastFrames[0], observation])
 
             reward = torch.tensor([rew], device=device)
 
@@ -249,20 +290,27 @@ def main():
             memory.push(frame, action, next_frame, reward)
 
             optimize_model()
-
+            
             target_net_state_dict = target_net.state_dict()
             policy_net_state_dict = policy_net.state_dict()
 
             for key in policy_net_state_dict:
                 target_net_state_dict[key] = policy_net_state_dict[key] * TAU + target_net_state_dict[key] * (1 - TAU)
             target_net.load_state_dict(target_net_state_dict)
-
+            
+            
             frame = next_frame
             if done:
                 np.save(filename_rewards_log, rewards)
                 torch.save({'model_state_dict': policy_net.state_dict()}, filepath_policy_net)
                 torch.save({'model_state_dict': target_net.state_dict()}, filepath_test_net)
                 break
+            
+            inference_time = time.time() - tim
+            inferences.append(inference_time)
+            print("**** Inference time = ", inference_time, " |||   Inference mean = ", np.mean(inferences))
+
+            # print("------------------------------------------")
 
 
     print('Complete')
