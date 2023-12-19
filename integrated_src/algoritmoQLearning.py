@@ -138,25 +138,19 @@ memory = ReplayMemory(10000)
 
 steps_done = 0
 
-def select_action(state, epsilon, temperature=1.0):
+def select_action(state, temperature=1.0):
     # Update number of steps taken:
     global steps_done
     steps_done += 1
     
-    # Select rand uniform num between 0 and 1
-    sample = random.uniform(0, 1)
+    # Apply softmax policy with temperature
+    action_values = policy_net(state).squeeze()
+    probabilities = F.softmax(action_values / temperature, dim=0)
     
-    # If chosen num > epsilon, explote (select most optimal action)
-    if sample > epsilon:
-        with torch.no_grad():
-            # Apply softmax policy formula
-            action_values = policy_net(state).squeeze()
-            probabilities = F.softmax(action_values / temperature, dim=0)
-            action = torch.multinomial(probabilities, 1).view(1, 1)
-            return action
-    # If not, explore:
-    else:
-        return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
+    # Choose action based on the probabilities
+    action = torch.multinomial(probabilities, 1).view(1, 1)
+    
+    return action
 
 def optimize_model():
     if len(memory) < BATCH_SIZE:
@@ -252,10 +246,13 @@ def main():
         frame = transformFrame(frame)
         lastFrames = [frame, frame, frame]
         stacked = np.vstack([frame, frame, frame, frame])
-        
-        # Update epsilon every episode
-        epsilon = EPS_END + (EPS_START - EPS_END) * math.exp(-EPS_DECAY * steps_done)
+                
+        # (COMMENTED) For epsilon-greedy policy
+        # epsilon = EPS_END + (EPS_START - EPS_END) * math.exp(-EPS_DECAY * steps_done)
 
+        # Update temperature based on softmax policy
+        temperature = max(0.1, 1.0 - steps_done * 0.0001)  # Example temperature decay
+        
         frame = torch.tensor(stacked, dtype=torch.float32, device=device).unsqueeze(0)
         
         # Take as many steps as specify for each episode
@@ -264,7 +261,7 @@ def main():
             tim = time.time()
             
             # Select best action based on softmax policy
-            action = select_action(frame, epsilon)
+            action = select_action(frame, temperature)
 
             initTime = time.time()
             obs, rew, done = env.step(action.item())
