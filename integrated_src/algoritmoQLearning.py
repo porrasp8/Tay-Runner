@@ -31,7 +31,7 @@ BATCH_SIZE = 128
 GAMMA = 0.97
 EPS_START = 0.99
 EPS_END = 0.05
-EPS_DECAY = 10000
+EPS_DECAY = 0.0001
 TAU = 0.005
 LR = 1e-4
 
@@ -138,26 +138,25 @@ memory = ReplayMemory(10000)
 
 steps_done = 0
 
-
-def select_action(state):
+def select_action(state, epsilon, temperature=1.0):
+    # Update number of steps taken:
     global steps_done
-    sample = random.random()
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-        math.exp(-1. * steps_done / EPS_DECAY)
-    
-    eps_threshold = min(eps_threshold, EPS_START)
-    print("*** Epsilon = ", eps_threshold)
-
     steps_done += 1
-    if sample > eps_threshold:
+    
+    # Select rand uniform num between 0 and 1
+    sample = random.uniform(0, 1)
+    
+    # If chosen num > epsilon, explote (select most optimal action)
+    if sample > epsilon:
         with torch.no_grad():
-            # t.max(1) will return the largest column value of each row.
-            # second column on max result is index of where max element was
-            # found, so we pick action with the larger expected reward.
-            return policy_net(state).max(1).indices.view(1, 1)
+            # Apply softmax policy formula
+            action_values = policy_net(state).squeeze()
+            probabilities = F.softmax(action_values / temperature, dim=0)
+            action = torch.multinomial(probabilities, 1).view(1, 1)
+            return action
+    # If not, explore:
     else:
         return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
-
 
 def optimize_model():
     if len(memory) < BATCH_SIZE:
@@ -198,8 +197,6 @@ def optimize_model():
     torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
     optimizer.step()
 
-
-
 def transformFrame(frame):
     frame = np.array(frame)
     grayscale_image = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
@@ -229,7 +226,6 @@ def transformFrame(frame):
 
     return cropped
 
-
 def main():
 #    if torch.cuda.is_available():
 #        num_episodes = 600
@@ -256,14 +252,19 @@ def main():
         frame = transformFrame(frame)
         lastFrames = [frame, frame, frame]
         stacked = np.vstack([frame, frame, frame, frame])
-
+        
+        # Update epsilon every episode
+        epsilon = EPS_END + (EPS_START - EPS_END) * math.exp(-EPS_DECAY * steps_done)
 
         frame = torch.tensor(stacked, dtype=torch.float32, device=device).unsqueeze(0)
-
+        
+        # Take as many steps as specify for each episode
         for t in count(): 
             
             tim = time.time()
-            action = select_action(frame)
+            
+            # Select best action based on softmax policy
+            action = select_action(frame, epsilon)
 
             initTime = time.time()
             obs, rew, done = env.step(action.item())
