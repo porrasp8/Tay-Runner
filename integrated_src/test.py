@@ -10,14 +10,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-import wraper
 import numpy as np
-import os
-import time
-import sys
 from algoritmoQLearning import DQN, ReplayMemory, load_model
-
-env = wraper.GeometryDashEnv()
 
 
 # if GPU is to be used
@@ -72,10 +66,6 @@ def select_action(state):
             return policy_net(state).max(1).indices.view(1, 1)
     else:
         return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
-
-
-
-
 
 
 def transformFrame(frame):

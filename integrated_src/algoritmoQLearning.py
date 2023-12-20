@@ -29,7 +29,8 @@ Transition = namedtuple('Transition',
 # Training params
 BATCH_SIZE = 128
 GAMMA = 0.97
-EPS_START = 0.99
+TEMP_START = 0.99
+TEMP_MIN = 0.1
 EPS_END = 0.05
 EPS_DECAY = 0.0001
 TAU = 0.005
@@ -204,16 +205,12 @@ def transformFrame(frame):
 
     cropped = input_state.reshape((1,84,84))
 
-    # cv2.imshow("Game Screenshot", cropped_image)
-    # key = cv2.waitKey(1)
+    cv2.imshow("Game Screenshot", cropped_image)
+    key = cv2.waitKey(1)
 
     return cropped
 
 def main():
-#    if torch.cuda.is_available():
-#        num_episodes = 600
-#    else:
-#        num_episodes = 50
 
     if len(sys.argv) == 2:
         global filepath_policy_net, filepath_test_net, filename_rewards_log
@@ -230,21 +227,19 @@ def main():
     lastFrames = []
 
     while True:
-    #for i_episode in range(num_episodes):
         frame = env.reset()
         frame = transformFrame(frame)
         lastFrames = [frame, frame, frame]
         stacked = np.vstack([frame, frame, frame, frame])
                 
-        # (COMMENTED) For epsilon-greedy policy
-        # epsilon = EPS_END + (EPS_START - EPS_END) * math.exp(-EPS_DECAY * steps_done)
 
+        # epsilon = EPS_END + (TEMP_START - EPS_END) * math.exp(-EPS_DECAY * steps_done)
         # Update temperature based on softmax policy
-        temperature = max(0.1, EPS_START - steps_done * EPS_DECAY)  # Example temperature decay
+        temperature = max(TEMP_MIN, TEMP_START - steps_done * EPS_DECAY)  # Example temperature decay
         
         frame = torch.tensor(stacked, dtype=torch.float32, device=device).unsqueeze(0)
         
-        # Take as many steps as specify for each episode
+
         for t in count(): 
             
             tim = time.time()
@@ -297,9 +292,6 @@ def main():
             inference_time = time.time() - tim
             inferences.append(inference_time)
             print("**** Inference time = ", inference_time, " |||   Inference mean = ", np.mean(inferences))
-
-            # print("------------------------------------------")
-
 
     print('Complete')
     plt.ioff()

@@ -16,9 +16,9 @@ JUMP_PENALTY = 1.0
 
 #-- Check it with CheatEngine
 memory_addresses = {
-    'gd_frame': 0x5BADBDC0,
-    'gd_percent': 0x5BADBD80,
-    'gd_speed': 0x5BADB780,
+    'gd_frame': 0x5BC3BDC0, 
+    'gd_percent': 0x5BC3BD80,
+    'gd_speed': 0x5BC3B780,
 }
 
 
