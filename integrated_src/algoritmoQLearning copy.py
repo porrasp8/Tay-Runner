@@ -31,7 +31,7 @@ BATCH_SIZE = 128
 GAMMA = 0.97
 EPS_START = 0.99
 EPS_END = 0.05
-EPS_DECAY = 0.0001
+EPS_DECAY = 0.00001
 TAU = 0.005
 LR = 1e-4
 
@@ -195,6 +195,17 @@ def transformFrame(frame):
     frame = np.array(frame)
     grayscale_image = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
 
+    '''
+    height, width = grayscale_image.shape
+
+    start_row = 0  
+    end_row = height  
+    start_col = int(width / 4)  
+    end_col = width  
+
+    # Half screen
+    cropped_image = grayscale_image[start_row:end_row, start_col:end_col]
+    '''
     cropped_image = grayscale_image
     image = cv2.resize(cropped_image, (84, 84))
     input_state = np.array(image)
@@ -240,7 +251,7 @@ def main():
         # epsilon = EPS_END + (EPS_START - EPS_END) * math.exp(-EPS_DECAY * steps_done)
 
         # Update temperature based on softmax policy
-        temperature = max(0.1, EPS_START - steps_done * EPS_DECAY)  # Example temperature decay
+        temperature = max(0.1, 1.0 - steps_done * EPS_DECAY)  # Example temperature decay
         
         frame = torch.tensor(stacked, dtype=torch.float32, device=device).unsqueeze(0)
         
